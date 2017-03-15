@@ -13,7 +13,8 @@
                  [cljsjs/react "15.4.2-2"]
                  [cljsjs/react-dom "15.4.2-2"]
                  [sablono "0.7.7"]
-                 [org.omcljs/om "1.0.0-alpha48"]]
+                 [org.omcljs/om "1.0.0-alpha48"]
+                 [com.cognitect/transit-cljs "0.8.239"]]
 
   :plugins [[lein-figwheel "0.5.9"]
             [lein-cljsbuild "1.1.5" :exclusions [[org.clojure/clojure]]]]
