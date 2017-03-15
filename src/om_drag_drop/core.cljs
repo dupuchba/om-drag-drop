@@ -8,7 +8,7 @@
 
 (enable-console-print!)
 
-(def init-data {:app/lists [{:id 1
+(def init-data {:app/lists [{:id       1
                              :elements [{:id   1
                                          :text "This is a draggable element 1"}
                                         {:id   2
@@ -23,7 +23,7 @@
                                          :text "This is a draggable element 6"}
                                         {:id   7
                                          :text "This is a draggable element 7"}]}
-                            {:id 2
+                            {:id       2
                              :elements [{:id   8
                                          :text "This is a draggable element 8"}
                                         {:id   9
@@ -73,7 +73,12 @@
                             :onDragOver  (fn [e]
                                            (set! (.. e -dataTransfer -dropEffect) "move")
                                            (.preventDefault e))
-                            :onDrop      (fn [e])}
+                            :onDrop      (fn [e]
+                                           (.preventDefault e)
+                                           (om/transact! this
+                                                         `[(element/drop ~(assoc dragging :to (om/get-ident this)))
+                                                           (element/drag nil)
+                                                           :app/lists]))}
                        (map (fn [el]
                               (element (om/computed el {:on-drag-start #(.on-drag-start this %)})))
                             elements))))))
@@ -98,6 +103,14 @@
 (defmethod read :default
   [{:keys [query state ast]} key params]
   (let [st @state]
+    (js/console.log "Default Read Called")
+    (js/console.log key)
+    {:value (om/db->tree query (get st key) st)}))
+
+(defmethod read :app/lists
+  [{:keys [query state ast]} key params]
+  (let [st @state]
+    (js/console.log "Lists Read Called")
     {:value (om/db->tree query (get st key) st)}))
 
 (defmethod read :elements/dragged
@@ -109,11 +122,27 @@
 
 (defmethod mutate 'element/drag
   [{:keys [state]} _ params]
-  {:value {:keys [:elements/dragged]}
+  {:value  {:keys [:elements/dragged]}
    :action (fn []
              (if-not (empty? params)
                (swap! state assoc :elements/dragged params)
                (swap! state assoc :elements/dragged nil)))})
+
+(defn move-element [state from to element]
+  (letfn [(remove* [elements ref]
+            (into [] (remove #{ref} elements)))
+          (add* [elements ref]
+            (into [] (cond-> elements
+                             (not (some #{ref} elements)) (conj ref))))]
+    (-> state
+        (update-in (conj from :elements) remove* element)
+        (update-in (conj to :elements) add* element))))
+
+(defmethod mutate 'element/drop
+  [{:keys [state]} _ {:keys [from to element]}]
+  {:value  {:keys [element from to]}
+   :action (fn []
+             (swap! state move-element from to element))})
 
 (def parser (om/parser {:read read :mutate mutate}))
 
