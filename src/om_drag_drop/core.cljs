@@ -8,6 +8,13 @@
 
 (enable-console-print!)
 
+;; =============================================================================
+;; Helper functions
+(def reader (t/reader :json))
+(def writer (t/writer :json))
+
+;; =============================================================================
+;; Initial Data
 (def init-data {:app/lists [{:id       1
                              :elements [{:id   1
                                          :text "This is a draggable element 1"}
@@ -27,8 +34,15 @@
                              :elements [{:id   8
                                          :text "This is a draggable element 8"}
                                         {:id   9
-                                         :text "This is a draggable element 9"}]}]})
+                                         :text "This is a draggable element 9"}]}
+                            {:id       3
+                             :elements [{:id   10
+                                         :text "This is a draggable element 10"}
+                                        {:id   11
+                                         :text "This is a draggable element 11"}]}]})
 
+;; =============================================================================
+;; UI Components
 (defui Element
   static om/Ident
   (ident [this {:keys [id]}]
@@ -45,10 +59,12 @@
                    :onDragStart (fn [e]
                                   (if (instance? js/HTMLLIElement (.-target e))
                                     (let [dataTransfer (.-dataTransfer e)]
-                                      (.setData dataTransfer "text/x-example" (str (om/get-ident this)))
+                                      (.setData dataTransfer "application/edn" (t/write writer (om/get-ident this)))
                                       (set! (.-effectAllowed dataTransfer) "move")
                                       (on-drag-start (om/get-ident this)))
-                                    (.preventDefault e)))}
+                                    (.preventDefault e)))
+                   :onDragEnd   (fn [e]
+                                  (om/transact! this `[(element/drag nil)]))}
               text))))
 
 (def element (om/factory Element {:keyfn :id}))
@@ -75,6 +91,7 @@
                                            (.preventDefault e))
                             :onDrop      (fn [e]
                                            (.preventDefault e)
+                                           (js/console.log (t/read reader (.getData (.-dataTransfer e) "application/edn")))
                                            (om/transact! this
                                                          `[(element/drop ~(assoc dragging :to (om/get-ident this)))
                                                            (element/drag nil)
@@ -95,22 +112,21 @@
     (let [{:keys [app/lists elements/dragged]} (om/props this)]
       (js/console.log (om/props this))
       (dom/div nil
-               (dom/h1 nil "This is where all it begins !")
+               (dom/h1 nil "Lists with draggable behavior !")
                (map #(element-list (om/computed % {:dragging (-> this om/props :elements/dragged)})) lists)))))
 
+;; =============================================================================
+;; Read/Mutate
 (defmulti read om/dispatch)
 
 (defmethod read :default
   [{:keys [query state ast]} key params]
   (let [st @state]
-    (js/console.log "Default Read Called")
-    (js/console.log key)
     {:value (om/db->tree query (get st key) st)}))
 
 (defmethod read :app/lists
   [{:keys [query state ast]} key params]
   (let [st @state]
-    (js/console.log "Lists Read Called")
     {:value (om/db->tree query (get st key) st)}))
 
 (defmethod read :elements/dragged
@@ -143,6 +159,10 @@
   {:value  {:keys [element from to]}
    :action (fn []
              (swap! state move-element from to element))})
+
+
+;; =============================================================================
+;; Settup Application
 
 (def parser (om/parser {:read read :mutate mutate}))
 
