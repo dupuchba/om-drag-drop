@@ -1,17 +1,11 @@
 (ns om-drag-drop.core
   (:require [om.next :as om :refer-macros [defui]]
             [om.dom :as dom]
-            [cognitect.transit :as t]
             [devtools.core :as devtools]))
 
 (devtools/install!)
 
 (enable-console-print!)
-
-;; =============================================================================
-;; Helper functions
-(def reader (t/reader :json))
-(def writer (t/writer :json))
 
 ;; =============================================================================
 ;; Initial Data
@@ -59,7 +53,6 @@
                    :onDragStart (fn [e]
                                   (if (instance? js/HTMLLIElement (.-target e))
                                     (let [dataTransfer (.-dataTransfer e)]
-                                      (.setData dataTransfer "application/edn" (t/write writer (om/get-ident this)))
                                       (set! (.-effectAllowed dataTransfer) "move")
                                       (on-drag-start (om/get-ident this)))
                                     (.preventDefault e)))
@@ -91,7 +84,6 @@
                                            (.preventDefault e))
                             :onDrop      (fn [e]
                                            (.preventDefault e)
-                                           (js/console.log (t/read reader (.getData (.-dataTransfer e) "application/edn")))
                                            (om/transact! this
                                                          `[(element/drop ~(assoc dragging :to (om/get-ident this)))
                                                            (element/drag nil)
@@ -110,7 +102,6 @@
   Object
   (render [this]
     (let [{:keys [app/lists elements/dragged]} (om/props this)]
-      (js/console.log (om/props this))
       (dom/div nil
                (dom/h1 nil "Lists with draggable behavior !")
                (map #(element-list (om/computed % {:dragging (-> this om/props :elements/dragged)})) lists)))))
@@ -120,11 +111,6 @@
 (defmulti read om/dispatch)
 
 (defmethod read :default
-  [{:keys [query state ast]} key params]
-  (let [st @state]
-    {:value (om/db->tree query (get st key) st)}))
-
-(defmethod read :app/lists
   [{:keys [query state ast]} key params]
   (let [st @state]
     {:value (om/db->tree query (get st key) st)}))
